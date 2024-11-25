@@ -1,7 +1,8 @@
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
-from PIL import Image
-import io
+from model import process_image, predict_emotion
+import os
+import tempfile
 
 app = FastAPI()
 
@@ -12,19 +13,19 @@ def read_root():
 @app.post("/analyze")
 async def analyze_image(file: UploadFile = File(...)):
     try:
-        # 이미지 읽기
-        image_bytes = await file.read()
-        image = Image.open(io.BytesIO(image_bytes))
-        
-        # 이미지 처리 (예: 크기 조정, Grayscale 변환)
-        image = image.resize((128, 128)).convert("L")
-        
-        # 감정 분석 결과 (임시, 실제 모델 연결 필요)
-        dummy_result = {
-            "emotion": "happy",
-            "confidence": 0.95
-        }
-        
-        return JSONResponse(content={"status": "success", "result": dummy_result})
+        # 임시 파일 저장
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_file:
+            tmp_file.write(await file.read())
+            tmp_path = tmp_file.name
+
+        # 이미지 전처리 및 추론
+        image_tensor = process_image(tmp_path)
+        result = predict_emotion(image_tensor)
+
+        # 임시 파일 삭제
+        os.remove(tmp_path)
+
+        # 결과 반환
+        return JSONResponse(content={"status": "success", "result": result})
     except Exception as e:
         return JSONResponse(content={"status": "error", "message": str(e)}, status_code=500)
